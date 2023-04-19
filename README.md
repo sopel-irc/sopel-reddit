@@ -31,7 +31,17 @@ _Note: Running the test suite with `pytest -v tests/` requires both
 slash_info = True
 # Allow expansion of inline references like `u/RandomRedditor` or `r/eyebleach`
 # (links are always expanded)
+
+app_id = abcdef0123456789
+# Optional custom app ID for the reddit API
 ```
+
+The `app_id` setting is provided mostly for future-proofing after [API policy
+changes announced by Reddit Inc. in April
+2023](https://old.reddit.com/r/reddit/comments/12qwagm/an_update_regarding_reddits_api/).
+It exists so possible future API limitations can be worked around by users
+without requiring a package update. **As of the time this package version was
+published, the `app_id` setting _does not_ need to have a value.**
 
 
 ## Special thanks
