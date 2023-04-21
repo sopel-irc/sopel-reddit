@@ -44,17 +44,21 @@ class RedditSection(types.StaticSection):
     slash_info = types.BooleanAttribute('slash_info', True)
     """Expand inline references to users (u/someone) and subreddits (r/subname) in chat."""
 
+    app_id = types.ValidatedAttribute('app_id', default='6EiphT6SSQq7FQ')
+    """Optional custom app ID for the reddit API."""
+
 
 def setup(bot):
+    bot.config.define_section('reddit', RedditSection)
+
     if 'reddit_praw' not in bot.memory:
         # Create a PRAW instance just once, at load time
         bot.memory['reddit_praw'] = praw.Reddit(
             user_agent=USER_AGENT,
-            client_id='6EiphT6SSQq7FQ',
+            client_id=bot.settings.reddit.app_id,
             client_secret=None,
             check_for_updates=False,
         )
-    bot.config.define_section('reddit', RedditSection)
 
 
 def configure(config):
