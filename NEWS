@@ -1,0 +1,8 @@
+Initial release - 1.0.0
+=======================
+
+Based on `reddit.py` from Sopel's built-ins as of upstream
+commit [7ad23ec](https://github.com/sopel-irc/sopel/commit/7ad23ec5c58612dbbe8d93b63793bbdad80fea80).
+
+Added:
+* Optional `app_id` setting (#1)
