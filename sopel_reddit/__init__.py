@@ -26,7 +26,7 @@ from sopel.tools.web import USER_AGENT
 
 PLUGIN_OUTPUT_PREFIX = '[reddit] '
 
-domain = r'https?://(?:www\.|old\.|new\.|pay\.|ssl\.|[a-z]{2}\.)?reddit\.com'
+domain = r'https?://(?:www\.|old\.|new\.|beta\.|pay\.|ssl\.|[a-z]{2}\.)?reddit\.com'
 subreddit_url = r'%s/r/([\w-]+)/?$' % domain
 post_or_comment_url = (
     domain +

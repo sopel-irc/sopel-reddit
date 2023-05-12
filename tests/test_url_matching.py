@@ -22,75 +22,75 @@ def bot(botfactory, configfactory):
     return botfactory.preloaded(settings, ['reddit'])
 
 
-MATCHING_URLS = (
-    # URLs the reddit plugin is expected to handle
-    # Should match ONCE each, no more, no less
-    ('auto_subreddit_info', 'https://reddit.com/r/subname'),
-    ('auto_subreddit_info', 'https://reddit.com/r/subname/'),
-    ('auto_subreddit_info', 'https://www.reddit.com/r/subname'),
-    ('auto_subreddit_info', 'https://www.reddit.com/r/subname/'),
-    ('auto_subreddit_info', 'https://old.reddit.com/r/subname'),
-    ('auto_subreddit_info', 'https://old.reddit.com/r/subname/'),
-    ('auto_subreddit_info', 'https://new.reddit.com/r/subname'),
-    ('auto_subreddit_info', 'https://new.reddit.com/r/subname/'),
-    ('auto_subreddit_info', 'https://pay.reddit.com/r/subname'),
-    ('auto_subreddit_info', 'https://pay.reddit.com/r/subname/'),
-    ('auto_subreddit_info', 'https://ssl.reddit.com/r/subname'),
-    ('auto_subreddit_info', 'https://ssl.reddit.com/r/subname/'),
-    ('post_or_comment_info', 'https://redd.it/123456'),
-    ('post_or_comment_info', 'https://redd.it/123456/'),
-    ('post_or_comment_info', 'https://reddit.com/123456'),
-    ('post_or_comment_info', 'https://reddit.com/123456/'),
-    ('post_or_comment_info', 'https://reddit.com/comments/123456'),
-    ('post_or_comment_info', 'https://reddit.com/comments/123456/'),
-    ('post_or_comment_info', 'https://www.reddit.com/comments/123456'),
-    ('post_or_comment_info', 'https://www.reddit.com/comments/123456/'),
-    ('post_or_comment_info', 'https://reddit.com/r/subname/comments/123456'),
-    ('post_or_comment_info', 'https://reddit.com/r/subname/comments/123456/'),
-    ('post_or_comment_info', 'https://www.reddit.com/comments/123456?param=value'),
-    ('post_or_comment_info', 'https://www.reddit.com/comments/123456/?param=value'),
-    ('post_or_comment_info', 'https://reddit.com/r/subname/comments/123456?param=value'),
-    ('post_or_comment_info', 'https://reddit.com/r/subname/comments/123456/?param=value'),
-    ('post_or_comment_info', 'https://www.reddit.com/r/subname/comments/123456'),
-    ('post_or_comment_info', 'https://www.reddit.com/r/subname/comments/123456/'),
-    ('post_or_comment_info', 'https://reddit.com/r/subname/comments/123456/post_title_slug/234567'),
-    ('post_or_comment_info', 'https://reddit.com/r/subname/comments/123456/post_title_slug/234567/'),
-    ('post_or_comment_info', 'https://www.reddit.com/r/subname/comments/123456/post_title_slug/234567'),
-    ('post_or_comment_info', 'https://www.reddit.com/r/subname/comments/123456/post_title_slug/234567/'),
-    ('post_or_comment_info', 'https://reddit.com/r/subname/comments/123456/post_title_slug/234567/?context=1337'),
-    ('post_or_comment_info', 'https://www.reddit.com/r/subname/comments/123456/post_title_slug/234567/?context=1337'),
-)
+@pytest.mark.parametrize('proto', ('http://', 'https://'))
+@pytest.mark.parametrize('trailing_slash', (True, False))
+@pytest.mark.parametrize('base', (
+    'reddit.com',
+    'www.reddit.com',
+    'old.reddit.com',
+    'new.reddit.com',
+    'beta.reddit.com',
+    'np.reddit.com',
+    'pay.reddit.com',
+    'ssl.reddit.com',
+    'it.reddit.com',
+    'es.reddit.com',
+    'fr.reddit.com',
+    'pl.reddit.com',
+    # sometimes, enough is enough
+))
+@pytest.mark.parametrize('path, rule_name', (
+    ('/r/subname', 'auto_subreddit_info'),
+    ('/comments/123456', 'post_or_comment_info'),
+    ('/r/subname/comments/123456', 'post_or_comment_info'),
+    ('/r/subname/comments/123456/post_title_slug', 'post_or_comment_info'),
+    ('/r/subname/comments/123456/post_title_slug/234567', 'post_or_comment_info'),
+))
+@pytest.mark.parametrize('query', (
+    '',
+    '?context=1337',
+    'param=value',
+))
+def test_long_url_matching(proto, base, path, query, trailing_slash, rule_name, bot):
+    link = proto + base + path
 
+    if trailing_slash:
+        link += '/'
 
-NON_MATCHING_URLS = (
+    link += query
+
     # we don't allow for query parameters on subreddit links (yet?)
-    'https://reddit.com/r/subname?param=value',
-    'https://reddit.com/r/subname/?param=value',
-    'https://www.reddit.com/r/subname?param=value',
-    'https://www.reddit.com/r/subname/?param=value',
-)
+    should_match = rule_name and not (rule_name == 'auto_subreddit_info' and query)
 
-
-@pytest.mark.parametrize('rule_name, link', MATCHING_URLS)
-def test_url_matching(link, rule_name, bot):
     line = PreTrigger(bot.nick, ':User!user@irc.libera.chat PRIVMSG #channel {}'.format(link))
     matched_rules = [
-        # we can ignore matches that don't come from the plugin under test
+        # we can ignore matches that don't come from this plugin
+        match[0] for match in bot.rules.get_triggered_rules(bot, line)
+        if match[0].get_plugin_name() == 'reddit'
+    ]
+
+    if should_match:
+        assert len(matched_rules) == 1
+        assert matched_rules[0].get_rule_label() == rule_name
+    else:
+        assert len(matched_rules) == 0
+
+
+@pytest.mark.parametrize('proto', ('http://', 'https://'))
+@pytest.mark.parametrize('base', ('redd.it', 'reddit.com'))
+@pytest.mark.parametrize('trailing_slash', (True, False))
+def test_short_url_matching(proto, base, trailing_slash, bot):
+    link = proto + base + '/sh0r7'
+
+    if trailing_slash:
+        link += '/'
+
+    line = PreTrigger(bot.nick, ':User!user@irc.libera.chat PRIVMSG #channel {}'.format(link))
+    matched_rules = [
+        # we can ignore matches that don't come from this plugin
         match[0] for match in bot.rules.get_triggered_rules(bot, line)
         if match[0].get_plugin_name() == 'reddit'
     ]
 
     assert len(matched_rules) == 1
-    assert matched_rules[0].get_rule_label() == rule_name
-
-
-@pytest.mark.parametrize('link', NON_MATCHING_URLS)
-def test_url_non_matching(link, bot):
-    line = PreTrigger(bot.nick, ':User!user@irc.libera.chat PRIVMSG #channel {}'.format(link))
-    matched_rules = [
-        # we can ignore matches that don't come from the plugin under test
-        match[0] for match in bot.rules.get_triggered_rules(bot, line)
-        if match[0].get_plugin_name() == 'reddit'
-    ]
-
-    assert len(matched_rules) == 0
+    assert matched_rules[0].get_rule_label() == 'post_or_comment_info'
