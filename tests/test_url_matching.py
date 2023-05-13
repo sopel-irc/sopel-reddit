@@ -98,9 +98,14 @@ def test_short_url_matching(proto, base, trailing_slash, bot):
 
 @pytest.mark.parametrize('proto', ('http://', 'https://'))
 @pytest.mark.parametrize('subdomain', ('i', 'preview'))
+@pytest.mark.parametrize('slug', ('', 'didnt-expect-to-find-this-near-school-v0-'))
 @pytest.mark.parametrize('ext', ('jpg', 'jpeg', 'png', 'gif', 'mp4'))
-def test_hosted_image_url_matching(proto, subdomain, ext, bot):
-    link = proto + subdomain + '.redd.it/yib0zwk1mmza1.' + ext
+@pytest.mark.parametrize('sig', (True, False))
+def test_hosted_image_url_matching(proto, subdomain, slug, ext, sig, bot):
+    link = proto + subdomain + '.redd.it/' + slug + 'yib0zwk1mmza1.' + ext
+
+    if sig:
+        link += '?s=965439a2d38896d978f5c2ecc0237964e7674813'
 
     line = PreTrigger(bot.nick, ':User!user@irc.libera.chat PRIVMSG #channel {}'.format(link))
     matched_rules = [
@@ -111,3 +116,7 @@ def test_hosted_image_url_matching(proto, subdomain, ext, bot):
 
     assert len(matched_rules) == 1
     assert matched_rules[0].get_rule_label() == 'image_info'
+
+    matches = [match for match in matched_rules[0].match(bot, line)]
+    assert len(matches) == 1
+    assert matches[0].group('image') == 'yib0zwk1mmza1.' + ext

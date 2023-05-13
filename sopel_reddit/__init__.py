@@ -35,7 +35,7 @@ post_or_comment_url = (
 )
 short_post_url = r'https?://(redd\.it|reddit\.com)/(?P<submission>[\w-]+)/?$'
 user_url = r'%s/u(?:ser)?/([\w-]+)' % domain
-image_url = r'https?://(?P<subdomain>i|preview)\.redd\.it/(?P<image>[^?\s]+)'
+image_url = r'https?://(?P<subdomain>i|preview)\.redd\.it/(?:[\w%]+-)*(?P<image>[^-?\s]+)'
 video_url = r'https?://v\.redd\.it/([\w-]+)'
 gallery_url = r'https?://(?:www\.)?reddit\.com/gallery/([\w-]+)'
 
