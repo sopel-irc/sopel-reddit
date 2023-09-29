@@ -1,3 +1,14 @@
+Version 1.0.1
+=============
+
+Added:
+* Handle `new` subdomain (#3)
+* Handle image links with post slugs (#6)
+
+Changed:
+* Improve URL-matching test coverage (#3, #4, #6)
+
+
 Initial release - 1.0.0
 =======================
 
