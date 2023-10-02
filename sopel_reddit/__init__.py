@@ -350,14 +350,14 @@ def redditor_info(bot, trigger, match, commanded=False):
 
     if is_cakeday:
         message = message + ' | ' + bold(color('Cake day', colors.LIGHT_PURPLE))
-    if commanded:
-        message = message + ' | https://reddit.com/u/' + u.name
     if u.is_gold:
         message = message + ' | ' + bold(color('Gold', colors.YELLOW))
     if u.is_employee:
         message = message + ' | ' + bold(color('Employee', colors.RED))
     if u.is_mod:
         message = message + ' | ' + bold(color('Mod', colors.GREEN))
+    if commanded:
+        message = message + ' | https://reddit.com/u/' + u.name
     message = message + (' | Link: ' + str(u.link_karma) +
                          ' | Comment: ' + str(u.comment_karma))
 
