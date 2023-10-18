@@ -314,7 +314,7 @@ def subreddit_info(bot, trigger, match, commanded=False, explicit_command=False)
             bot.reply("r/" + match + " appears to be a banned subreddit!")
         return plugin.NOLIMIT
 
-    link = 'https://reddit.com/r/' + s.display_name.lower()
+    link = 'https://reddit.com' + s.url
 
     created = get_time_created(bot, trigger, s.created_utc)
 
