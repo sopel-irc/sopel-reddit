@@ -318,8 +318,8 @@ def subreddit_info(bot, trigger, match, commanded=False, explicit_command=False)
 
     created = get_time_created(bot, trigger, s.created_utc)
 
-    message = ('r/{name}{nsfw}{link} | {subscribers} subscribers | '
-               'Created at {created} | {public_description}')
+    message = ('{name}{nsfw}{link} | {subscribers} subscribers | '
+               'Created at {created} | {descriptions}')
 
     nsfw = ''
     if s.over18:
@@ -333,13 +333,15 @@ def subreddit_info(bot, trigger, match, commanded=False, explicit_command=False)
                 'Linking to NSFW content in a SFW channel.'
             )
 
+    descriptions = (text for text in (s.title, s.public_description) if text)
+
     message = message.format(
-        name=s.display_name,
+        name=s.display_name_prefixed,
         nsfw=nsfw,
         link=(' | ' + link) if commanded else '',
         subscribers='{:,}'.format(s.subscribers),
         created=created,
-        public_description=s.public_description,
+        descriptions=' | '.join(descriptions) or '(no description)',
     )
 
     bot.say(message, truncation=' […]')
