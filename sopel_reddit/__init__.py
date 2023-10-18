@@ -270,13 +270,13 @@ def say_comment_info(bot, trigger, id_):
     bot.say(message, truncation=' […]')
 
 
-def subreddit_info(bot, trigger, match, commanded=False):
-    """Shows information about the given subreddit"""
+def subreddit_info(bot, trigger, match, commanded=False, explicit_command=False):
+    """Shows information about the given subreddit."""
     match_lower = match.lower()
     if match_lower in ['all', 'popular']:
-        message = '{link}{nsfw} | {public_description}'
+        message = 'r/{name}{nsfw}{link} | {public_description}'
         nsfw = ' ' + bold(color('[Possible NSFW]', colors.ORANGE))
-        link = "https://reddit.com/r/" + match_lower
+        link = (' | https://reddit.com/r/' + match_lower) if commanded else ''
         public_description = ''
         if match_lower == 'all':
             public_description = ('Today\'s top content from hundreds of '
@@ -285,7 +285,11 @@ def subreddit_info(bot, trigger, match, commanded=False):
             public_description = ('The top trending content from some of '
                                   'Reddit\'s most popular communities')
         message = message.format(
-            link=link, nsfw=nsfw, public_description=public_description)
+            name=match_lower,
+            nsfw=nsfw,
+            link=link,
+            public_description=public_description,
+        )
         bot.say(message)
         return plugin.NOLIMIT
 
@@ -293,26 +297,28 @@ def subreddit_info(bot, trigger, match, commanded=False):
     try:
         r.subreddits.search_by_name(match, exact=True)
     except prawcore.exceptions.NotFound:
-        if commanded:
+        # fail silently if it wasn't an explicit command
+        if explicit_command:
             bot.reply('No such subreddit.')
-        # Fail silently if it wasn't an explicit command.
         return plugin.NOLIMIT
 
     try:
         s = r.subreddit(match)
         s.subreddit_type
     except prawcore.exceptions.Forbidden:
-        bot.reply("r/" + match + " appears to be a private subreddit!")
+        if explicit_command:
+            bot.reply("r/" + match + " appears to be a private subreddit!")
         return plugin.NOLIMIT
     except prawcore.exceptions.NotFound:
-        bot.reply("r/" + match + " appears to be a banned subreddit!")
+        if explicit_command:
+            bot.reply("r/" + match + " appears to be a banned subreddit!")
         return plugin.NOLIMIT
 
-    link = "https://reddit.com/r/" + s.display_name
+    link = 'https://reddit.com/r/' + s.display_name.lower()
 
     created = get_time_created(bot, trigger, s.created_utc)
 
-    message = ('{link}{nsfw} | {subscribers} subscribers | '
+    message = ('r/{name}{nsfw}{link} | {subscribers} subscribers | '
                'Created at {created} | {public_description}')
 
     nsfw = ''
@@ -328,8 +334,13 @@ def subreddit_info(bot, trigger, match, commanded=False):
             )
 
     message = message.format(
-        link=link, nsfw=nsfw, subscribers='{:,}'.format(s.subscribers),
-        created=created, public_description=s.public_description)
+        name=s.display_name,
+        nsfw=nsfw,
+        link=(' | ' + link) if commanded else '',
+        subscribers='{:,}'.format(s.subscribers),
+        created=created,
+        public_description=s.public_description,
+    )
 
     bot.say(message, truncation=' […]')
 
@@ -373,7 +384,7 @@ def auto_redditor_info(bot, trigger, match):
 @plugin.url(subreddit_url)
 @plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
 def auto_subreddit_info(bot, trigger, match):
-    return subreddit_info(bot, trigger, match.group(1))
+    return subreddit_info(bot, trigger, match.group(1), commanded=False, explicit_command=False)
 
 
 @plugin.require_chanmsg('Setting SFW status is only supported in a channel.')
@@ -480,7 +491,7 @@ def reddit_slash_info(bot, trigger):
         return
 
     if searchtype == "r":
-        return subreddit_info(bot, trigger, match, commanded=False)
+        return subreddit_info(bot, trigger, match, commanded=True, explicit_command=False)
     elif searchtype == "u":
         return redditor_info(bot, trigger, match, commanded=False)
 
@@ -496,7 +507,7 @@ def subreddit_command(bot, trigger):
 
     # subreddit names do not contain spaces
     match = trigger.group(3)
-    return subreddit_info(bot, trigger, match, commanded=True)
+    return subreddit_info(bot, trigger, match, commanded=True, explicit_command=True)
 
 
 @plugin.command('redditor')
