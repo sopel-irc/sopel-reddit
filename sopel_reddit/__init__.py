@@ -345,15 +345,16 @@ def subreddit_info(bot, trigger, match, commanded=False, explicit_command=False)
     bot.say(message, truncation=' […]')
 
 
-def redditor_info(bot, trigger, match, commanded=False):
-    """Shows information about the given Redditor"""
+def redditor_info(bot, trigger, match, commanded=False, explicit_command=False):
+    """Shows information about the given Redditor."""
     try:
         u = bot.memory['reddit_praw'].redditor(match)
         u.id  # shortcut to check if the user exists or not
     except prawcore.exceptions.NotFound:
-        if commanded:
+        # fail silently if it wasn't an explicit command
+        if explicit_command:
             bot.reply('No such Redditor.')
-        # Fail silently if it wasn't an explicit command.
+
         return plugin.NOLIMIT
 
     message = u.name
@@ -378,7 +379,7 @@ def redditor_info(bot, trigger, match, commanded=False):
 @plugin.url(user_url)
 @plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
 def auto_redditor_info(bot, trigger, match):
-    return redditor_info(bot, trigger, match.group(1))
+    return redditor_info(bot, trigger, match.group(1), commanded=False, explicit_command=False)
 
 
 @plugin.url(subreddit_url)
@@ -493,7 +494,7 @@ def reddit_slash_info(bot, trigger):
     if searchtype == "r":
         return subreddit_info(bot, trigger, match, commanded=True, explicit_command=False)
     elif searchtype == "u":
-        return redditor_info(bot, trigger, match, commanded=False)
+        return redditor_info(bot, trigger, match, commanded=True, explicit_command=False)
 
 
 @plugin.command('subreddit')
@@ -521,4 +522,4 @@ def redditor_command(bot, trigger):
 
     # Redditor names do not contain spaces
     match = trigger.group(3)
-    return redditor_info(bot, trigger, match, commanded=True)
+    return redditor_info(bot, trigger, match, commanded=True, explicit_command=True)
