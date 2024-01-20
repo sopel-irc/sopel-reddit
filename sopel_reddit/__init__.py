@@ -112,7 +112,7 @@ def image_info(bot, trigger, match):
     results = list(
         bot.memory['reddit_praw']
         .subreddit('all')
-        .search('url:{}'.format(url), sort='new', params={'include_over_18': 'on'})
+        .search('url:"{}"'.format(url), sort='new', params={'include_over_18': 'on'})
     )
     try:
         oldest = results[-1]
@@ -125,17 +125,36 @@ def image_info(bot, trigger, match):
 @plugin.url(video_url)
 @plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
 def video_info(bot, trigger, match):
-    # Get the video URL with a cheeky hack
-    url = requests.head(
-        'https://www.reddit.com/video/{}'.format(match.group(1)),
-        timeout=(10.0, 4.0)).headers['Location']
+    submission_id = None
     try:
-        return say_post_info(
-            bot, trigger, re.match(post_or_comment_url, url).group('submission'), False, True
+        # Get the video URL with a cheeky hack
+        url = requests.head(
+            'https://www.reddit.com/video/{}'.format(match.group(1)),
+            timeout=(10.0, 4.0)).headers['Location']
+        submission_id = re.match(post_or_comment_url, url).group('submission')
+    except KeyError:
+        # Reddit must not like this bot's IP range
+        results = list(
+            bot.memory['reddit_praw']
+            .subreddit('all')
+            .search(
+                'url:"{}"'.format(trigger.group(0)),
+                sort='new', params={'include_over_18': 'on'}
+            )
         )
-    except AttributeError:
-        # Fail silently if we can't map the video link to a submission
+        try:
+            oldest = results[-1]
+        except IndexError:
+            # Fail silently at this point; nothing useful from hack *or* the API
+            return plugin.NOLIMIT
+        else:
+            submission_id = oldest.id
+
+    if submission_id is None:
+        # type checking probably wouldn't like omitting this sanity check
         return plugin.NOLIMIT
+
+    return say_post_info(bot, trigger, submission_id, False, True)
 
 
 @plugin.url(post_or_comment_url)
