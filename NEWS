@@ -1,3 +1,16 @@
+Version 1.1.0
+=============
+
+Changed:
+* Improve consistency of when links are included in output (#9, #10)
+* Improve ordering of user output fields (#11)
+* Try harder to get a useful subreddit description (#13)
+* Try harder to fetch source submission for video links (#14)
+
+Fixed:
+* Capitalization in generated subreddit URL (#13)
+
+
 Version 1.0.1
 =============
 
