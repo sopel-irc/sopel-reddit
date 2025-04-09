@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+platforms = ["Linux x86, x86-64"]
+
+[tool.setuptools.packages.find]
+include = ["sopel_reddit", "sopel_reddit.*"]
+namespaces = false
+
+[tool.setuptools.dynamic]
+readme = { file=["README.md", "NEWS"], content-type="text/markdown" }
+
+[project]
+name = "sopel-reddit"
+version = "1.1.0"
+description = "A reddit plugin for Sopel IRC bots."
+
+authors = [
+  { name="dgw", email="dgw@technobabbl.es" },
+]
+
+license = "EFL-2.0"
+license-files = ["COPYING"]
+dynamic = ["readme"]
+
+classifiers = [
+  "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
+  "Topic :: Communications :: Chat :: Internet Relay Chat",
+]
+keywords = [
+  "sopel",
+  "plugin",
+  "bot",
+  "irc",
+]
+
+requires-python = ">=3.8, <4"
+dependencies = [
+  "sopel>=8.0",
+  "praw>=4.0.0,<8.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/sopel-irc/sopel-reddit"
+"Bug Tracker" = "https://github.com/sopel-irc/sopel-reddit/issues"
+
+[project.entry-points."sopel.plugins"]
+"reddit" = "sopel_reddit.plugin"

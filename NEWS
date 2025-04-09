@@ -1,5 +1,6 @@
-Version 1.1.0
-=============
+## Changelog
+
+### 1.1.0
 
 Changed:
 * Improve consistency of when links are included in output (#9, #10)
@@ -11,8 +12,7 @@ Fixed:
 * Capitalization in generated subreddit URL (#13)
 
 
-Version 1.0.1
-=============
+### 1.0.1
 
 Added:
 * Handle `new` subdomain (#3)
@@ -22,11 +22,12 @@ Changed:
 * Improve URL-matching test coverage (#3, #4, #6)
 
 
-Initial release - 1.0.0
-=======================
+### 1.0.0
 
-Based on `reddit.py` from Sopel's built-ins as of upstream
-commit [7ad23ec](https://github.com/sopel-irc/sopel/commit/7ad23ec5c58612dbbe8d93b63793bbdad80fea80).
+Initial release of `sopel-reddit`.
+
+Based on `reddit.py` from Sopel's built-ins as of upstream commit
+[7ad23ec](https://github.com/sopel-irc/sopel/commit/7ad23ec5c58612dbbe8d93b63793bbdad80fea80).
 
 Added:
 * Optional `app_id` setting (#1)
