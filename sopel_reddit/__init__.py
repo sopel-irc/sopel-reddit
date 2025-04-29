@@ -223,80 +223,79 @@ def say_post_info(
         bot.reply("No such post.")
         return plugin.NOLIMIT
 
-    if True:
-        message = (
-            '{title}{flair} {link}{nsfw} | {points} {points_text} ({percent}) '
-            '| {comments} {comments_text} | Posted by {author} | '
-            'Created at {created}{comments_link}')
+    message = (
+        '{title}{flair} {link}{nsfw} | {points} {points_text} ({percent}) '
+        '| {comments} {comments_text} | Posted by {author} | '
+        'Created at {created}{comments_link}')
 
-        flair = ''
-        if s.link_flair_text:
-            flair = " ('{}' flair)".format(s.link_flair_text)
+    flair = ''
+    if s.link_flair_text:
+        flair = " ('{}' flair)".format(s.link_flair_text)
 
-        subreddit = s.subreddit.display_name
-        if show_link:
-            link = '({}) to r/{}'.format(s.shortlink, subreddit)
-        elif s.is_self:
-            link = '(self.{})'.format(subreddit)
-        else:
-            link = 'to r/{}'.format(subreddit)
+    subreddit = s.subreddit.display_name
+    if show_link:
+        link = '({}) to r/{}'.format(s.shortlink, subreddit)
+    elif s.is_self:
+        link = '(self.{})'.format(subreddit)
+    else:
+        link = 'to r/{}'.format(subreddit)
 
-        nsfw = ''
-        if s.over_18:
-            nsfw += ' ' + bold(color('[NSFW]', colors.RED))
+    nsfw = ''
+    if s.over_18:
+        nsfw += ' ' + bold(color('[NSFW]', colors.RED))
 
-            sfw = bot.db.get_channel_value(trigger.sender, 'sfw')
-            if sfw:
-                link = '(link hidden)'
-                bot.kick(
-                    trigger.nick, trigger.sender,
-                    'Linking to NSFW content in a SFW channel.'
-                )
-        if s.spoiler:
-            nsfw += ' ' + bold(color('[SPOILER]', colors.GRAY))
+        sfw = bot.db.get_channel_value(trigger.sender, 'sfw')
+        if sfw:
+            link = '(link hidden)'
+            bot.kick(
+                trigger.nick, trigger.sender,
+                'Linking to NSFW content in a SFW channel.'
+            )
+    if s.spoiler:
+        nsfw += ' ' + bold(color('[SPOILER]', colors.GRAY))
 
-            spoiler_free = bot.db.get_channel_value(trigger.sender, 'spoiler_free')
-            if spoiler_free:
-                link = '(link hidden)'
-                bot.kick(
-                    trigger.nick, trigger.sender,
-                    'Linking to spoiler content in a spoiler-free channel.'
-                )
+        spoiler_free = bot.db.get_channel_value(trigger.sender, 'spoiler_free')
+        if spoiler_free:
+            link = '(link hidden)'
+            bot.kick(
+                trigger.nick, trigger.sender,
+                'Linking to spoiler content in a spoiler-free channel.'
+            )
 
-        if s.author:
-            author = s.author.name
-        else:
-            author = '[deleted]'
+    if s.author:
+        author = s.author.name
+    else:
+        author = '[deleted]'
 
-        created = get_time_created(bot, trigger, s.created_utc)
+    created = get_time_created(bot, trigger, s.created_utc)
 
-        if s.score > 0:
-            point_color = colors.GREEN
-        else:
-            point_color = colors.RED
+    if s.score > 0:
+        point_color = colors.GREEN
+    else:
+        point_color = colors.RED
 
-        points_text = 'point' if s.score == 1 else 'points'
+    points_text = 'point' if s.score == 1 else 'points'
 
-        percent = color('{:.1%}'.format(s.upvote_ratio), point_color)
+    percent = color('{:.1%}'.format(s.upvote_ratio), point_color)
 
-        comments_text = 'comment' if s.num_comments == 1 else 'comments'
+    comments_text = 'comment' if s.num_comments == 1 else 'comments'
 
-        comments_link = ''
-        if show_comments_link:
-            try:
-                comments_link = ' | ' + s.shortlink
-            except AttributeError:
-                # the value assigned earlier will be used
-                pass
+    comments_link = ''
+    if show_comments_link:
+        try:
+            comments_link = ' | ' + s.shortlink
+        except AttributeError:
+            # the value assigned earlier will be used
+            pass
 
-        title = html.unescape(s.title)
-        message = message.format(
-            title=title, flair=flair, link=link, nsfw=nsfw, points=s.score,
-            points_text=points_text, percent=percent, comments=s.num_comments,
-            comments_text=comments_text, author=author, created=created,
-            comments_link=comments_link)
+    title = html.unescape(s.title)
+    message = message.format(
+        title=title, flair=flair, link=link, nsfw=nsfw, points=s.score,
+        points_text=points_text, percent=percent, comments=s.num_comments,
+        comments_text=comments_text, author=author, created=created,
+        comments_link=comments_link)
 
-        bot.say(message)
+    bot.say(message)
 
 
 def say_comment_info(
