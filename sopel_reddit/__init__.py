@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import html
 import re
+from typing import TYPE_CHECKING
 
 import praw  # type: ignore[import]
 import prawcore  # type: ignore[import]
@@ -23,6 +24,12 @@ from sopel.formatting import bold, color, colors
 from sopel.tools import time
 from sopel.tools.web import USER_AGENT
 
+if TYPE_CHECKING:
+    from typing import Optional
+
+    from sopel import SopelWrapper
+    from sopel.triggers import Trigger
+
 
 PLUGIN_OUTPUT_PREFIX = '[reddit] '
 
@@ -33,6 +40,7 @@ post_or_comment_url = (
     r'(?:/r/\S+?)?/comments/(?P<submission>[\w-]+)'
     r'(?:/?(?:[\w%]+/(?P<comment>[\w-]+))?)'
 )
+share_url = r'https?://(?:www\.)?reddit\.com/r/\S+?/s/\w+'
 short_post_url = r'https?://(redd\.it|reddit\.com)/(?P<submission>[\w-]+)/?$'
 user_url = r'%s/u(?:ser)?/([\w-]+)' % domain
 image_url = r'https?://(?P<subdomain>i|preview)\.redd\.it/(?:[\w%]+-)*(?P<image>[^-?\s]+)'
@@ -157,6 +165,24 @@ def video_info(bot, trigger, match):
     return say_post_info(bot, trigger, submission_id, False, True)
 
 
+@plugin.url(share_url)
+@plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
+def share_info(bot: SopelWrapper, trigger: Trigger):
+    url = trigger.match.group(0)
+
+    try:
+        say_comment_info(bot, trigger, url=url, show_link=True)
+        return
+    except praw.exceptions.InvalidURL:
+        pass
+    except AssertionError:
+        # Invalid share links give "AssertionError: Unexpected status code: 307"
+        bot.reply("Error fetching metadata")
+        return
+
+    say_post_info(bot, trigger, url=url)
+
+
 @plugin.url(post_or_comment_url)
 @plugin.url(short_post_url)
 @plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
@@ -178,97 +204,120 @@ def rgallery_info(bot, trigger, match):
     return say_post_info(bot, trigger, match.group(1), False)
 
 
-def say_post_info(bot, trigger, id_, show_link=True, show_comments_link=False):
+def say_post_info(
+    bot: SopelWrapper,
+    trigger: Trigger,
+    id_: Optional[str] = None,
+    url: Optional[str] = None,
+    show_link: bool = True,
+    show_comments_link: bool = False,
+):
     try:
-        s = bot.memory['reddit_praw'].submission(id=id_)
-
-        message = (
-            '{title}{flair} {link}{nsfw} | {points} {points_text} ({percent}) '
-            '| {comments} {comments_text} | Posted by {author} | '
-            'Created at {created}{comments_link}')
-
-        flair = ''
-        if s.link_flair_text:
-            flair = " ('{}' flair)".format(s.link_flair_text)
-
-        subreddit = s.subreddit.display_name
-        if not show_link:
-            link = 'to r/{}'.format(subreddit)
-        elif s.is_self:
-            link = '(self.{})'.format(subreddit)
+        if id_ is None:
+            if url is None:
+                raise TypeError("Expected either id_ or url parameter")
+            s = bot.memory["reddit_praw"].submission(url=url)
         else:
-            link = '({}) to r/{}'.format(s.url, subreddit)
-
-        nsfw = ''
-        if s.over_18:
-            nsfw += ' ' + bold(color('[NSFW]', colors.RED))
-
-            sfw = bot.db.get_channel_value(trigger.sender, 'sfw')
-            if sfw:
-                link = '(link hidden)'
-                bot.kick(
-                    trigger.nick, trigger.sender,
-                    'Linking to NSFW content in a SFW channel.'
-                )
-        if s.spoiler:
-            nsfw += ' ' + bold(color('[SPOILER]', colors.GRAY))
-
-            spoiler_free = bot.db.get_channel_value(trigger.sender, 'spoiler_free')
-            if spoiler_free:
-                link = '(link hidden)'
-                bot.kick(
-                    trigger.nick, trigger.sender,
-                    'Linking to spoiler content in a spoiler-free channel.'
-                )
-
-        if s.author:
-            author = s.author.name
-        else:
-            author = '[deleted]'
-
-        created = get_time_created(bot, trigger, s.created_utc)
-
-        if s.score > 0:
-            point_color = colors.GREEN
-        else:
-            point_color = colors.RED
-
-        points_text = 'point' if s.score == 1 else 'points'
-
-        percent = color('{:.1%}'.format(s.upvote_ratio), point_color)
-
-        comments_text = 'comment' if s.num_comments == 1 else 'comments'
-
-        comments_link = ''
-        if show_comments_link:
-            try:
-                comments_link = ' | ' + s.shortlink
-            except AttributeError:
-                # the value assigned earlier will be used
-                pass
-
-        title = html.unescape(s.title)
-        message = message.format(
-            title=title, flair=flair, link=link, nsfw=nsfw, points=s.score,
-            points_text=points_text, percent=percent, comments=s.num_comments,
-            comments_text=comments_text, author=author, created=created,
-            comments_link=comments_link)
-
-        bot.say(message)
+            s = bot.memory["reddit_praw"].submission(id=id_)
     except prawcore.exceptions.NotFound:
-        bot.reply('No such post.')
+        bot.reply("No such post.")
         return plugin.NOLIMIT
 
+    message = (
+        '{title}{flair} {link}{nsfw} | {points} {points_text} ({percent}) '
+        '| {comments} {comments_text} | Posted by {author} | '
+        'Created at {created}{comments_link}')
 
-def say_comment_info(bot, trigger, id_):
+    flair = ''
+    if s.link_flair_text:
+        flair = " ('{}' flair)".format(s.link_flair_text)
+
+    subreddit = s.subreddit.display_name
+    if show_link:
+        link = '({}) to r/{}'.format(s.shortlink, subreddit)
+    elif s.is_self:
+        link = '(self.{})'.format(subreddit)
+    else:
+        link = 'to r/{}'.format(subreddit)
+
+    nsfw = ''
+    if s.over_18:
+        nsfw += ' ' + bold(color('[NSFW]', colors.RED))
+
+        sfw = bot.db.get_channel_value(trigger.sender, 'sfw')
+        if sfw:
+            link = '(link hidden)'
+            bot.kick(
+                trigger.nick, trigger.sender,
+                'Linking to NSFW content in a SFW channel.'
+            )
+    if s.spoiler:
+        nsfw += ' ' + bold(color('[SPOILER]', colors.GRAY))
+
+        spoiler_free = bot.db.get_channel_value(trigger.sender, 'spoiler_free')
+        if spoiler_free:
+            link = '(link hidden)'
+            bot.kick(
+                trigger.nick, trigger.sender,
+                'Linking to spoiler content in a spoiler-free channel.'
+            )
+
+    if s.author:
+        author = s.author.name
+    else:
+        author = '[deleted]'
+
+    created = get_time_created(bot, trigger, s.created_utc)
+
+    if s.score > 0:
+        point_color = colors.GREEN
+    else:
+        point_color = colors.RED
+
+    points_text = 'point' if s.score == 1 else 'points'
+
+    percent = color('{:.1%}'.format(s.upvote_ratio), point_color)
+
+    comments_text = 'comment' if s.num_comments == 1 else 'comments'
+
+    comments_link = ''
+    if show_comments_link:
+        try:
+            comments_link = ' | ' + s.shortlink
+        except AttributeError:
+            # the value assigned earlier will be used
+            pass
+
+    title = html.unescape(s.title)
+    message = message.format(
+        title=title, flair=flair, link=link, nsfw=nsfw, points=s.score,
+        points_text=points_text, percent=percent, comments=s.num_comments,
+        comments_text=comments_text, author=author, created=created,
+        comments_link=comments_link)
+
+    bot.say(message)
+
+
+def say_comment_info(
+    bot: SopelWrapper,
+    trigger: Trigger,
+    id_: Optional[str] = None,
+    url: Optional[str] = None,
+    show_link: bool = False,
+):
     try:
-        c = bot.memory['reddit_praw'].comment(id_)
+        if id_ is None:
+            if url is None:
+                raise TypeError("Expected either id_ or url parameter")
+            c = bot.memory["reddit_praw"].comment(url=url)
+        else:
+            c = bot.memory["reddit_praw"].comment(id=id_)
     except prawcore.exceptions.NotFound:
         bot.reply('No such comment.')
         return plugin.NOLIMIT
 
     message = ('Comment by {author} | {points} {points_text} | '
-               'Posted at {posted} | {comment}')
+               'Posted at {posted} | {link}{comment}')
 
     if c.author:
         author = c.author.name
@@ -279,12 +328,20 @@ def say_comment_info(bot, trigger, id_):
 
     posted = get_time_created(bot, trigger, c.created_utc)
 
+    # DIY shortish-link, since c.permalink is both long and not a link
+    link = ""
+    if show_link:
+        link = "https://reddit.com/comments/{}/c/{} | ".format(
+            c.link_id[3:],  # strip t3_ prefix
+            c.id
+        )
+
     # stolen from the function I (dgw) wrote for our github plugin
     lines = [line for line in c.body.splitlines() if line and line[0] != '>']
 
     message = message.format(
         author=author, points=c.score, points_text=points_text,
-        posted=posted, comment=' '.join(lines))
+        posted=posted, link=link, comment=' '.join(lines))
 
     bot.say(message, truncation=' […]')
 
