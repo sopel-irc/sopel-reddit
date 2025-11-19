@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import html
 import re
+from typing import TYPE_CHECKING
 
 import praw  # type: ignore[import]
 import prawcore  # type: ignore[import]
@@ -23,6 +24,10 @@ from sopel.formatting import bold, color, colors
 from sopel.tools import time
 from sopel.tools.web import USER_AGENT
 
+if TYPE_CHECKING:
+    from sopel import SopelWrapper
+    from sopel.triggers import Trigger
+
 
 PLUGIN_OUTPUT_PREFIX = '[reddit] '
 
@@ -33,6 +38,7 @@ post_or_comment_url = (
     r'(?:/r/\S+?)?/comments/(?P<submission>[\w-]+)'
     r'(?:/?(?:[\w%]+/(?P<comment>[\w-]+))?)'
 )
+share_url = r'https?://(?:www\.)?reddit\.com/r/\S+?/s/\w+'
 short_post_url = r'https?://(redd\.it|reddit\.com)/(?P<submission>[\w-]+)/?$'
 user_url = r'%s/u(?:ser)?/([\w-]+)' % domain
 image_url = r'https?://(?P<subdomain>i|preview)\.redd\.it/(?:[\w%]+-)*(?P<image>[^-?\s]+)'
@@ -119,7 +125,7 @@ def image_info(bot, trigger, match):
     except IndexError:
         # Fail silently if the image link can't be mapped to a submission
         return plugin.NOLIMIT
-    return say_post_info(bot, trigger, oldest.id, preview, True)
+    return say_post_info(bot, trigger, oldest.id, show_link=preview, show_comments_link=True)
 
 
 @plugin.url(video_url)
@@ -154,7 +160,25 @@ def video_info(bot, trigger, match):
         # type checking probably wouldn't like omitting this sanity check
         return plugin.NOLIMIT
 
-    return say_post_info(bot, trigger, submission_id, False, True)
+    return say_post_info(bot, trigger, submission_id, show_link=False, show_comments_link=True)
+
+
+@plugin.url(share_url)
+@plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
+def share_info(bot: SopelWrapper, trigger: Trigger):
+    url = trigger.match.group(0)
+
+    try:
+        say_comment_info(bot, trigger, url=url, show_link=True)
+        return
+    except praw.exceptions.InvalidURL:
+        pass
+    except AssertionError:
+        # Invalid share links give "AssertionError: Unexpected status code: 307"
+        bot.reply("Error fetching metadata")
+        return
+
+    say_post_info(bot, trigger, url=url)
 
 
 @plugin.url(post_or_comment_url)
@@ -175,13 +199,26 @@ def post_or_comment_info(bot, trigger, match):
 @plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
 def rgallery_info(bot, trigger, match):
     match = match or trigger
-    return say_post_info(bot, trigger, match.group(1), False)
+    return say_post_info(bot, trigger, match.group(1), show_link=False)
 
 
-def say_post_info(bot, trigger, id_, show_link=True, show_comments_link=False):
+def say_post_info(
+    bot: SopelWrapper,
+    trigger: Trigger,
+    id_: str | None = None,
+    url: str | None = None,
+    show_link: bool = True,
+    show_comments_link: bool = False,
+):
+    if not (id_ or url):
+        raise TypeError("Expected either id_ or url parameter")
     try:
-        s = bot.memory['reddit_praw'].submission(id=id_)
+        s = bot.memory["reddit_praw"].submission(id=id_, url=url)
+    except prawcore.exceptions.NotFound:
+        bot.reply("No such post.")
+        return plugin.NOLIMIT
 
+    if True:
         message = (
             '{title}{flair} {link}{nsfw} | {points} {points_text} ({percent}) '
             '| {comments} {comments_text} | Posted by {author} | '
@@ -192,12 +229,12 @@ def say_post_info(bot, trigger, id_, show_link=True, show_comments_link=False):
             flair = " ('{}' flair)".format(s.link_flair_text)
 
         subreddit = s.subreddit.display_name
-        if not show_link:
-            link = 'to r/{}'.format(subreddit)
+        if show_link:
+            link = "({}) to r/{}".format(s.shortlink, subreddit)
         elif s.is_self:
             link = '(self.{})'.format(subreddit)
         else:
-            link = '({}) to r/{}'.format(s.url, subreddit)
+            link = "to r/{}".format(subreddit)
 
         nsfw = ''
         if s.over_18:
@@ -244,7 +281,6 @@ def say_post_info(bot, trigger, id_, show_link=True, show_comments_link=False):
             try:
                 comments_link = ' | ' + s.shortlink
             except AttributeError:
-                # the value assigned earlier will be used
                 pass
 
         title = html.unescape(s.title)
@@ -255,20 +291,25 @@ def say_post_info(bot, trigger, id_, show_link=True, show_comments_link=False):
             comments_link=comments_link)
 
         bot.say(message)
-    except prawcore.exceptions.NotFound:
-        bot.reply('No such post.')
-        return plugin.NOLIMIT
 
 
-def say_comment_info(bot, trigger, id_):
+def say_comment_info(
+    bot: SopelWrapper,
+    trigger: Trigger,
+    id_: str | None = None,
+    url: str | None = None,
+    show_link: bool = False,
+):
+    if not (id_ or url):
+        raise TypeError("Expected either id_ or url parameter")
     try:
-        c = bot.memory['reddit_praw'].comment(id_)
+        c = bot.memory["reddit_praw"].comment(id=id_, url=url)
     except prawcore.exceptions.NotFound:
         bot.reply('No such comment.')
         return plugin.NOLIMIT
 
-    message = ('Comment by {author} | {points} {points_text} | '
-               'Posted at {posted} | {comment}')
+    message = ("Comment by {author} | {points} {points_text} | "
+               "Posted at {posted} | {link}{comment}")
 
     if c.author:
         author = c.author.name
@@ -279,12 +320,20 @@ def say_comment_info(bot, trigger, id_):
 
     posted = get_time_created(bot, trigger, c.created_utc)
 
+    # DIY short-ish link, since c.permalink is both long and not a link
+    link = ""
+    if show_link:
+        link = "https://reddit.com/comments/{}/c/{} | ".format(
+            c.link_id[3:],  # strip t3_ prefix
+            c.id,
+        )
+
     # stolen from the function I (dgw) wrote for our github plugin
     lines = [line for line in c.body.splitlines() if line and line[0] != '>']
 
     message = message.format(
         author=author, points=c.score, points_text=points_text,
-        posted=posted, comment=' '.join(lines))
+        posted=posted, link=link, comment=" ".join(lines))
 
     bot.say(message, truncation=' […]')
 
