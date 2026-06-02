@@ -178,7 +178,7 @@ def share_info(bot: SopelWrapper, trigger: Trigger):
         bot.reply("Error fetching metadata")
         return
 
-    say_post_info(bot, trigger, url=url)
+    say_post_info(bot, trigger, url=url, show_comments_link=True)
 
 
 @plugin.url(post_or_comment_url)
@@ -207,8 +207,8 @@ def say_post_info(
     trigger: Trigger,
     id_: str | None = None,
     url: str | None = None,
-    show_link: bool = True,
-    show_comments_link: bool = False,
+    show_link: bool = True,  # the link referenced by the reddit post
+    show_comments_link: bool = False,  # the link to the reddit post itself
 ):
     if not (id_ or url):
         raise TypeError("Expected either id_ or url parameter")
@@ -219,21 +219,22 @@ def say_post_info(
         return plugin.NOLIMIT
 
     message = (
-        '{title}{flair} {link}{nsfw} | {points} {points_text} ({percent}) '
-        '| {comments} {comments_text} | Posted by {author} | '
-        'Created at {created}{comments_link}')
+        "{title}{flair} to {subreddit}{nsfw}"
+        " | {points:,} {points_text} ({percent})"
+        " | {comments:,} {comments_text}"
+        " | Post by {author} at {created}"
+        "{link}{comments_link}"
+    )
 
     flair = ''
     if s.link_flair_text:
-        flair = " ('{}' flair)".format(s.link_flair_text)
+        flair = " [{}]".format(s.link_flair_text)
 
-    subreddit = s.subreddit.display_name
-    if show_link:
-        link = "({}) to r/{}".format(s.shortlink, subreddit)
-    elif s.is_self:
-        link = '(self.{})'.format(subreddit)
-    else:
-        link = "to r/{}".format(subreddit)
+    subreddit = ("self." if s.is_self else "r/") + s.subreddit.display_name
+
+    link = ""
+    if show_link and not s.is_self:
+        link = " | " + s.url
 
     nsfw = ''
     if s.over_18:
@@ -241,7 +242,8 @@ def say_post_info(
 
         sfw = bot.db.get_channel_value(trigger.sender, 'sfw')
         if sfw:
-            link = '(link hidden)'
+            if link:
+                link = " | (link hidden)"
             bot.kick(
                 trigger.nick, trigger.sender,
                 'Linking to NSFW content in a SFW channel.'
@@ -251,7 +253,8 @@ def say_post_info(
 
         spoiler_free = bot.db.get_channel_value(trigger.sender, 'spoiler_free')
         if spoiler_free:
-            link = '(link hidden)'
+            if link:
+                link = " | (link hidden)"
             bot.kick(
                 trigger.nick, trigger.sender,
                 'Linking to spoiler content in a spoiler-free channel.'
@@ -278,16 +281,26 @@ def say_post_info(
     comments_link = ''
     if show_comments_link:
         try:
-            comments_link = ' | ' + s.shortlink
+            comments_link = " | " + s.shortlink
         except AttributeError:
             pass
 
     title = html.unescape(s.title)
     message = message.format(
-        title=title, flair=flair, link=link, nsfw=nsfw, points=s.score,
-        points_text=points_text, percent=percent, comments=s.num_comments,
-        comments_text=comments_text, author=author, created=created,
-        comments_link=comments_link)
+        title=title,
+        flair=flair,
+        subreddit=subreddit,
+        nsfw=nsfw,
+        points=s.score,
+        points_text=points_text,
+        percent=percent,
+        comments=s.num_comments,
+        comments_text=comments_text,
+        author=author,
+        created=created,
+        link=link,
+        comments_link=comments_link,
+    )
 
     bot.say(message)
 
