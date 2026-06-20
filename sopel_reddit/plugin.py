@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime as dt
 import html
+from importlib import metadata
 import re
 from typing import TYPE_CHECKING
 
@@ -22,7 +23,6 @@ from sopel import plugin
 from sopel.config import types
 from sopel.formatting import bold, color, colors
 from sopel.tools import time
-from sopel.tools.web import USER_AGENT
 
 if TYPE_CHECKING:
     from sopel import SopelWrapper
@@ -53,14 +53,30 @@ class RedditSection(types.StaticSection):
     app_id = types.ValidatedAttribute('app_id', default='6EiphT6SSQq7FQ')
     """Optional custom app ID for the reddit API."""
 
+    owner_username = types.ValidatedAttribute(
+        'owner_username', default=types.NO_DEFAULT
+    )
+    """The bot owner's Reddit username, used in the user-agent string.
+
+    See https://github.com/reddit-archive/reddit/wiki/API#rules
+    """
+
 
 def setup(bot):
     bot.config.define_section('reddit', RedditSection)
 
-    if 'reddit_praw' not in bot.memory:
-        # Create a PRAW instance just once, at load time
+    if 'reddit_praw' in bot.memory:
+        # Clear the existing instance, in case the configuration has been updated
+        del bot.memory['reddit_praw']
+    else:
+        # Build user-agent string using the configuration settings
+        ua_string = "python:sopel-reddit:v{version} (operated by u/{username})".format(
+            version=metadata.version('sopel-reddit'),
+            username=bot.config.reddit.owner_username,
+        )
+        # Create a shared PRAW instance
         bot.memory['reddit_praw'] = praw.Reddit(
-            user_agent=USER_AGENT,
+            user_agent=ua_string,
             client_id=bot.settings.reddit.app_id,
             client_secret=None,
             check_for_updates=False,
@@ -68,9 +84,17 @@ def setup(bot):
 
 
 def configure(config):
-    config.define_section('reddit', RedditSection)
+    config.define_section('reddit', RedditSection, validate=False)
     config.reddit.configure_setting(
         'slash_info', "Expand references like u/someone or r/subname in chat?"
+    )
+    config.reddit.configure_setting(
+        'owner_username',
+        "So Reddit can contact you if your bot gets flagged, what's your Reddit username?",
+    )
+    config.reddit.configure_setting(
+        'app_id',
+        "Your own app ID for the Reddit API. (optional, for now)",
     )
 
 
